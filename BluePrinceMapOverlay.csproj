@@ -17,6 +17,7 @@
   <PropertyGroup>
     <MelonLoaderPath>$(BluePrinceBasePath)\MelonLoader</MelonLoaderPath>
     <ModsPath>$(BluePrinceBasePath)\Mods</ModsPath>
+    <BundlePath>$(MSBuildProjectDirectory)\assets\asset_bundles\map_overlay.bundle</BundlePath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -358,11 +359,13 @@
     <Compile Include="Core.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="assets\asset_bundles\" />
+  </ItemGroup>
+
   <Target Name="CopyFiles" AfterTargets="PostBuildEvent">
-    <Copy
-        SourceFiles="$(TargetPath)"
-        DestinationFolder="$(ModsPath)"
-    />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModsPath)" />
+    <Copy SourceFiles="$(BundlePath)" DestinationFolder="$(ModsPath)\BluePrinceCompass\assets" />
   </Target>
 
 </Project>
