@@ -18,7 +18,7 @@ namespace BluePrinceMapOverlay
         private MelonPreferences_Entry<float> _scale;
         private MelonPreferences_Entry<float> _transparency;
         private MelonPreferences_Entry<KeyCode> _toggleKey;
-        private MelonPreferences_Entry<bool> _defaultVisibility;
+        private MelonPreferences_Entry<bool> _visibleAtStart;
 
         private const string HudGameObjectPath = "__SYSTEM/HUD";
         private const string CullingReferencePath = "__SYSTEM/HUD/Steps/Steps Icon";
@@ -57,10 +57,10 @@ namespace BluePrinceMapOverlay
             _overlayX = MelonPreferences.CreateEntry<double>(PreferencesCategoryName, "OverlayX", -11.3f, null, "The x position of the overlay relative to the HUD GameObject.");
             _overlayY = MelonPreferences.CreateEntry<double>(PreferencesCategoryName, "OverlayY", -1004.6f, null, "The y position of the overlay relative to the HUD GameObject.");
             _scale = MelonPreferences.CreateEntry<float>(PreferencesCategoryName, "Scale", 1.0f, null, "The size of the overlay relative to its default size.");
-            _transparency = MelonPreferences.CreateEntry<float>(PreferencesCategoryName, "Transparency", 0.5f, null, "The transparency of the overlay, from 0 to 1.");
-            _toggleKey = MelonPreferences.CreateEntry<KeyCode>(PreferencesCategoryName, "ToggleButton", KeyCode.LeftControl, null, 
+            _transparency = MelonPreferences.CreateEntry<float>(PreferencesCategoryName, "Transparency", 0.5f, null, "The transparency of the overlay, from 0 (opaque) to 1 (fully transparent).");
+            _toggleKey = MelonPreferences.CreateEntry<KeyCode>(PreferencesCategoryName, "ToggleKey", KeyCode.LeftControl, null, 
                 "The key to toggle the overlay visibility. Left Control by default. See Unity KeyCodes (https://docs.unity3d.com/6000.1/Documentation/ScriptReference/KeyCode.html)");
-            _defaultVisibility = MelonPreferences.CreateEntry<bool>(PreferencesCategoryName, "DefaultVisibility", true, null, "The default visibility of the overlay when the game starts.");
+            _visibleAtStart = MelonPreferences.CreateEntry<bool>(PreferencesCategoryName, "VisibleAtStart", true, null, "The default visibility of the overlay when the day starts.");
 
             LoggerInstance.Msg($"Compass Preferences: {Path.Combine(MelonEnvironment.UserDataDirectory, $"{PreferencesCategoryName}.cfg")}");
             _category.SetFilePath(Path.Combine(MelonEnvironment.UserDataDirectory, $"{PreferencesCategoryName}.cfg"));
@@ -346,7 +346,7 @@ namespace BluePrinceMapOverlay
             if (_cullingReference.activeInHierarchy)
             {
                 _openingCutsceneFinished = true;
-                _mapOverlay.SetActive(_defaultVisibility.Value);
+                _mapOverlay.SetActive(_visibleAtStart.Value);
             }
         }
 
