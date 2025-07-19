@@ -1,4 +1,5 @@
-﻿using MelonLoader;
+﻿using Il2Cpp;
+using MelonLoader;
 using MelonLoader.Utils;
 using UnityEngine;
 
@@ -25,6 +26,7 @@ namespace BluePrinceMapOverlay
         private const string GridReferencePath = "__SYSTEM/THE GRID";
         private const string SystemGameObjectPath = "__SYSTEM";
         private const string PlayerIconRelativePath = "FPS Home/FPSController - Prince/Player Core/Player Icon";
+        private const string GridManagerPath = "ROOMS/Grid Manager";
 
         private const string BundlePathSuffix = "BluePrinceMapOverlay/assets/map_overlay.bundle";
         private const string PrefabName = "Map Overlay";
@@ -41,6 +43,8 @@ namespace BluePrinceMapOverlay
         private Camera _mapOverlayCamera;
         private Dictionary<Renderer, bool> _mapRendererVisibilities;
         private GameObject _playerIcon;
+        // Only used to determine if the player is inside so we can disable the player icon
+        private GridManager _gridManager;
 
         public override void OnInitializeMelon()
         {
@@ -86,11 +90,7 @@ namespace BluePrinceMapOverlay
                 LoggerInstance.Error($"Map Drafting Camera GameObject \"{MapDraftingCameraPath}\" not found in the scene, skipping camera creation.");
                 return;
             }
-
             _mapOverlayCamera = CreateMapOverlayCamera(mapDraftingCamera);
-
-            _mapRendererVisibilities = GetMapRendererVisibilities();
-            _playerIcon = GetPlayerIcon();
 
             Material material = SetupMaterial(_mapOverlay, _mapOverlayCamera);
             if (material == null)
@@ -98,6 +98,12 @@ namespace BluePrinceMapOverlay
                 LoggerInstance.Error("Failed to set up Map Overlay material.");
                 return;
             }
+
+            _mapRendererVisibilities = GetMapRendererVisibilities();
+            _playerIcon = GetPlayerIcon();
+            _gridManager = GetGridManager();
+
+
         }
 
         // Retrieves the culling reference GameObject from the HUD GameObject using the
@@ -111,6 +117,18 @@ namespace BluePrinceMapOverlay
                 return null;
             }
             return cullingReference;
+        }
+
+        // Instantiates the map overlay prefab from the asset bundle and sets it up with the
+        private GridManager GetGridManager()
+        {
+            GameObject gridManager = GameObject.Find(GridManagerPath);
+            if (gridManager == null)
+            {
+                LoggerInstance.Error($"Could not find Grid Manager GameObject \"{GridManagerPath}\"");
+                return null;
+            }
+            return gridManager.GetComponent<GridManager>();
         }
 
         // Loads the map overlay prefab from the asset bundle and instantiates it at the specified
@@ -292,9 +310,6 @@ namespace BluePrinceMapOverlay
                 _mapRendererVisibilities[renderer] = renderer.enabled;
                 renderer.enabled = true;
             }
-            // The icon disables itself, so I'm just reenabling it before every render.
-            // Disabling it again after the render breaks things for some reason.
-            _playerIcon.SetActive(true);
         }
 
         // The bottom of the RenderTexture isn't cleared by default, so we need to clear it manually.
@@ -333,6 +348,7 @@ namespace BluePrinceMapOverlay
 
             HandleCutsceneFinished();
             HandleToggleKeyPress();
+            HandlePlayerIconVisibility();
         }
 
         // Enables the map overlay after the opening cutscene is finished.
@@ -356,6 +372,26 @@ namespace BluePrinceMapOverlay
             if (Input.GetKeyDown(_toggleKey.Value))
             {
                 _mapOverlay.SetActive(!_mapOverlay.activeSelf);
+            }
+        }
+
+        private void HandlePlayerIconVisibility()
+        {
+            if (_playerIcon == null)
+            {
+                return;
+            }
+
+            // Disable the player icon if the player is outside the grid.
+            // The icon disables itself in the source code, so I'm just reenabling it every frame.
+            if (_gridManager != null)
+            {
+                _playerIcon.SetActive(!_gridManager._wasPlayerOutside);
+            }
+            else
+            {
+                // Default to true if grid manager is not available. It will show up even if the player is underground.
+                _playerIcon.SetActive(true);
             }
         }
     }
