@@ -104,6 +104,8 @@ namespace BluePrinceMapOverlay
 
             _mapRendererVisibilities = GetMapRendererVisibilities();
             _playerIcon = GetPlayerIcon();
+            // The player icon is too high up at the top of the clocktower. Lowering it by 2 units fixes this.
+            _playerIcon.transform.localPosition = new Vector3(0, 10f, 0);
             _gridManager = GetGridManager();
 
             _isToggledOn = false;
