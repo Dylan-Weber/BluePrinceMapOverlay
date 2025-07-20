@@ -39,12 +39,15 @@ namespace BluePrinceMapOverlay
         
         private GameObject _mapOverlay;
         private GameObject _cullingReference;
-        private bool _openingCutsceneFinished;
         private Camera _mapOverlayCamera;
         private Dictionary<Renderer, bool> _mapRendererVisibilities;
         private GameObject _playerIcon;
         // Only used to determine if the player is inside so we can disable the player icon
         private GridManager _gridManager;
+        private GameObject _mapDraftingCamera;
+
+        private bool _openingCutsceneFinished;
+        private bool _isToggledOn = false;
 
         public override void OnInitializeMelon()
         {
@@ -83,14 +86,14 @@ namespace BluePrinceMapOverlay
 
             _cullingReference = GetCullingReference();
             _mapOverlay = LoadMapOverlay(hud, _cullingReference);
-            GameObject mapDraftingCamera = GameObject.Find(MapDraftingCameraPath);
+            _mapDraftingCamera = GameObject.Find(MapDraftingCameraPath);
 
-            if (mapDraftingCamera == null)
+            if (_mapDraftingCamera == null)
             {
                 LoggerInstance.Error($"Map Drafting Camera GameObject \"{MapDraftingCameraPath}\" not found in the scene, skipping camera creation.");
                 return;
             }
-            _mapOverlayCamera = CreateMapOverlayCamera(mapDraftingCamera);
+            _mapOverlayCamera = CreateMapOverlayCamera(_mapDraftingCamera);
 
             Material material = SetupMaterial(_mapOverlay, _mapOverlayCamera);
             if (material == null)
@@ -103,7 +106,7 @@ namespace BluePrinceMapOverlay
             _playerIcon = GetPlayerIcon();
             _gridManager = GetGridManager();
 
-
+            _isToggledOn = false;
         }
 
         // Retrieves the culling reference GameObject from the HUD GameObject using the
@@ -349,6 +352,8 @@ namespace BluePrinceMapOverlay
             HandleCutsceneFinished();
             HandleToggleKeyPress();
             HandlePlayerIconVisibility();
+            SetOverlayActive();
+
         }
 
         // Enables the map overlay after the opening cutscene is finished.
@@ -362,7 +367,7 @@ namespace BluePrinceMapOverlay
             if (_cullingReference.activeInHierarchy)
             {
                 _openingCutsceneFinished = true;
-                _mapOverlay.SetActive(_visibleAtStart.Value);
+                _isToggledOn = _visibleAtStart.Value;
             }
         }
 
@@ -371,10 +376,10 @@ namespace BluePrinceMapOverlay
         {
             if (Input.GetKeyDown(_toggleKey.Value))
             {
-                _mapOverlay.SetActive(!_mapOverlay.activeSelf);
+                _isToggledOn = !_isToggledOn;
             }
         }
-
+        
         private void HandlePlayerIconVisibility()
         {
             if (_playerIcon == null)
@@ -386,13 +391,23 @@ namespace BluePrinceMapOverlay
             // The icon disables itself in the source code, so I'm just reenabling it every frame.
             if (_gridManager != null)
             {
-                _playerIcon.SetActive(!_gridManager.IsPlayerOutside);
+                _playerIcon.SetActive(!_gridManager.IsPlayerActuallyOutside);
             }
             else
             {
                 // Default to true if grid manager is not available. It will show up even if the player is underground.
                 _playerIcon.SetActive(true);
             }
+        }
+
+        private void SetOverlayActive()
+        {
+            bool isActive = _isToggledOn;
+            if (_mapDraftingCamera.activeInHierarchy)
+            {
+                isActive = false; // Hide the overlay while the drafting map is visible.
+            }
+            _mapOverlay.SetActive(isActive);
         }
     }
 }
