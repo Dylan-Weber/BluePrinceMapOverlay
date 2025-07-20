@@ -386,7 +386,7 @@ namespace BluePrinceMapOverlay
             // The icon disables itself in the source code, so I'm just reenabling it every frame.
             if (_gridManager != null)
             {
-                _playerIcon.SetActive(!_gridManager._wasPlayerOutside);
+                _playerIcon.SetActive(!_gridManager.IsPlayerOutside);
             }
             else
             {
