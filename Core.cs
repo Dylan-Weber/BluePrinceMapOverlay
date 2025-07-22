@@ -26,6 +26,7 @@ namespace BluePrinceMapOverlay
         private const string GridReferencePath = "__SYSTEM/THE GRID";
         private const string SystemGameObjectPath = "__SYSTEM";
         private const string PlayerIconRelativePath = "FPS Home/FPSController - Prince/Player Core/Player Icon";
+        private const string PlayerIconMenuRelativePath = "FPS Home/FPSController - Prince/Player Core/Player Icon Menu";
         private const string GridManagerPath = "ROOMS/Grid Manager";
 
         private const string BundlePathSuffix = "BluePrinceMapOverlay/assets/map_overlay.bundle";
@@ -42,9 +43,11 @@ namespace BluePrinceMapOverlay
         private Camera _mapOverlayCamera;
         private Dictionary<Renderer, bool> _mapRendererVisibilities;
         private GameObject _playerIcon;
+        private List<GameObject> _otherPlayerIcons;
         // Only used to determine if the player is inside so we can disable the player icon
         private GridManager _gridManager;
         private GameObject _mapDraftingCamera;
+        private GameObject _mapCamera;
 
         private bool _openingCutsceneFinished;
         private bool _isToggledOn = false;
@@ -102,10 +105,10 @@ namespace BluePrinceMapOverlay
                 return;
             }
 
-            _mapRendererVisibilities = GetMapRendererVisibilities();
-            _playerIcon = GetPlayerIcon();
-            // The player icon is too high up at the top of the clocktower. Lowering it by 2 units fixes this.
-            _playerIcon.transform.localPosition = new Vector3(0, 10f, 0);
+            GameObject grid = GameObject.Find(GridReferencePath);
+            _mapRendererVisibilities = GetRendererVisibilities(grid);
+            _playerIcon = ClonePlayerIcon();
+            _otherPlayerIcons = GetOtherPlayerIcons();
             _gridManager = GetGridManager();
 
             _isToggledOn = false;
@@ -134,6 +137,25 @@ namespace BluePrinceMapOverlay
                 return null;
             }
             return gridManager.GetComponent<GridManager>();
+        }
+
+        private GameObject FindRelativeToSystem(string relativePath)
+        {
+            GameObject system = GameObject.Find(SystemGameObjectPath);
+            Transform relativeTransform = system.transform.Find(relativePath);
+            if (relativeTransform == null)
+            {
+                LoggerInstance.Error($"Could not find relative Transform \"{relativePath}\" in system GameObject.");
+                return null;
+            }
+            return relativeTransform.gameObject;
+        }
+
+        // Finds the other player icons in the scene.
+        private List<GameObject> GetOtherPlayerIcons()
+        {
+            return [FindRelativeToSystem(PlayerIconRelativePath),
+                    FindRelativeToSystem(PlayerIconMenuRelativePath)];
         }
 
         // Loads the map overlay prefab from the asset bundle and instantiates it at the specified
@@ -198,7 +220,7 @@ namespace BluePrinceMapOverlay
         // rendered.
         private void InitCulling(GameObject obj, GameObject hud, GameObject cullingReference)
         {
-            Il2Cpp.Culler hudCuller = hud.GetComponent<Il2Cpp.Culler>();
+            Culler hudCuller = hud.GetComponent<Culler>();
             if (hudCuller == null)
             {
                 LoggerInstance.Error($"HUD GameObject with name \"{HudGameObjectPath}\" does not have a Culler component. The map overlay will not be added to the culler.");
@@ -220,10 +242,10 @@ namespace BluePrinceMapOverlay
                     hudCuller._childRenderersEnabled.Contains(referenceRenderer));
             }
 
-            MeshRenderer[] renderers = obj.GetComponentsInChildren<MeshRenderer>();
+            Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
             // I wasn't sure how to convert from the array to an Il2CPP enumerable, so I just
             // add the MeshRenderers one by one.
-            foreach (MeshRenderer renderer in renderers)
+            foreach (Renderer renderer in renderers)
             {
                 // I don't like using these private fields, but I don't know how to add the
                 // map overlay to the culler otherwise.
@@ -252,68 +274,27 @@ namespace BluePrinceMapOverlay
             cameraObject.name = "Map Overlay Camera";
             Camera camera = cameraObject.GetComponent<Camera>();
             camera.clearFlags = CameraClearFlags.Nothing;
-            // Blue Prince constantly enables and disables the map tiles, and I'm not sure where that's happening.
+            // Blue Prince constantly enables and disables the map tile renderers, and I'm not sure where that's happening.
             // I added these callbacks as a workaround to ensure the map overlay is always visible when the camera is active.
             Camera.onPreCull += (Camera.CameraCallback) PreCullCallback;
             Camera.onPostRender += (Camera.CameraCallback) PostRenderCallback;
             return camera;
         }
 
-
         private void PreCullCallback(Camera cam)
         {
-            if (cam != _mapOverlayCamera)
+            if (cam == _mapOverlayCamera)
             {
-                return;
+                ClearRenderTexture(cam);
+                SetRenderers(_mapRendererVisibilities, true);
             }
-            ClearRenderTexture(cam);
-            EnableRenderers();
         }
 
         private void PostRenderCallback(Camera cam)
         {
-            if (cam != _mapOverlayCamera)
+            if (cam == _mapOverlayCamera)
             {
-                return;
-            }
-            ResetRenderers();
-        }
-
-        // Retrieves the visibilities of all map renderers in the grid GameObject and stores them in a dictionary.
-        private static Dictionary<Renderer, bool> GetMapRendererVisibilities()
-        {
-            Dictionary<Renderer, bool> rendererVisibilities = [];
-
-            GameObject grid = GameObject.Find(GridReferencePath);
-            Renderer[] renderers = grid.GetComponentsInChildren<MeshRenderer>(true);
-            foreach (Renderer renderer in renderers)
-            {
-                rendererVisibilities[renderer] = renderer.enabled;
-            }
-            return rendererVisibilities;
-        }
-
-        // Retrieves the player icon GameObject from the system GameObject using the specified relative path.
-        private GameObject GetPlayerIcon()
-        {
-            // The player icon starts disabled, so we can't use GameObject.Find directly to get it.
-            GameObject system = GameObject.Find(SystemGameObjectPath);
-            GameObject playerIcon = system.transform.Find(PlayerIconRelativePath).gameObject;
-            if (playerIcon == null)
-            {
-                LoggerInstance.Error($"Could not find player icon Transform \"{PlayerIconRelativePath}\"");
-                return null;
-            }
-            return playerIcon;
-        }
-
-        // Enables all map renderers and the player icon before rendering the map overlay.
-        private void EnableRenderers()
-        {
-            foreach (Renderer renderer in _mapRendererVisibilities.Keys)
-            {
-                _mapRendererVisibilities[renderer] = renderer.enabled;
-                renderer.enabled = true;
+                ResetRenderers(_mapRendererVisibilities);
             }
         }
 
@@ -333,15 +314,56 @@ namespace BluePrinceMapOverlay
             }
         }
 
-        // Resets the visibility of all map renderers to their original state after rendering the map overlay.
-        private void ResetRenderers()
+
+        // Retrieves the visibilities of all renderers in the GameObject and stores them in a dictionary.
+        private static Dictionary<Renderer, bool> GetRendererVisibilities(GameObject root)
         {
-            foreach (KeyValuePair<Renderer, bool> entries in _mapRendererVisibilities)
+            Dictionary<Renderer, bool> rendererVisibilities = [];
+
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer renderer in renderers)
+            {
+                rendererVisibilities[renderer] = renderer.enabled;
+            }
+
+            return rendererVisibilities;
+        }
+
+        // Sets the renderers to the given values and stores their previous values in the map.
+        private static void SetRenderers(Dictionary<Renderer, bool> rendererVisibilities, bool enabled)
+        {
+            foreach (Renderer renderer in rendererVisibilities.Keys)
+            {
+                rendererVisibilities[renderer] = renderer.enabled;
+                renderer.enabled = enabled;
+            }
+        }
+
+        // Resets the visibility of all map renderers to their original state after rendering.
+        private static void ResetRenderers(Dictionary<Renderer, bool> rendererVisibilities)
+        {
+            foreach (KeyValuePair<Renderer, bool> entries in rendererVisibilities)
             {
                 Renderer renderer = entries.Key;
-                bool visibility = entries.Value;
-                renderer.enabled = visibility;
+                bool enabled = entries.Value;
+                renderer.enabled = enabled;
             }
+        }
+
+        // Clones the existing player icon GameObject
+        private GameObject ClonePlayerIcon()
+        {
+            // The player icon starts disabled, so we can't use GameObject.Find directly to get it.
+            GameObject oldPlayerIcon = FindRelativeToSystem(PlayerIconRelativePath);
+            Vector3 position = oldPlayerIcon.transform.position;
+            GameObject newPlayerIcon = GameObject.Instantiate(oldPlayerIcon,
+                // The icon is too high at the top of the clocktower, so we move it down a bit.
+                oldPlayerIcon.transform.position - new Vector3(0, 2, 0), 
+                oldPlayerIcon.transform.rotation, 
+                oldPlayerIcon.transform.parent
+            );
+            newPlayerIcon.name = "Player Icon Map Overlay";
+            return newPlayerIcon;
         }
 
         public override void OnUpdate()
@@ -353,9 +375,8 @@ namespace BluePrinceMapOverlay
 
             HandleCutsceneFinished();
             HandleToggleKeyPress();
-            HandlePlayerIconVisibility();
+            SetPlayerIconActive();
             SetOverlayActive();
-
         }
 
         // Enables the map overlay after the opening cutscene is finished.
@@ -381,27 +402,34 @@ namespace BluePrinceMapOverlay
                 _isToggledOn = !_isToggledOn;
             }
         }
-        
-        private void HandlePlayerIconVisibility()
+
+        // Sets the player icon active or inactive based on the player's position in the grid.
+        private void SetPlayerIconActive()
         {
             if (_playerIcon == null)
             {
                 return;
             }
 
-            // Disable the player icon if the player is outside the grid.
-            // The icon disables itself in the source code, so I'm just reenabling it every frame.
-            if (_gridManager != null)
+            // There are some weird flashing bugs when multiple player icons are active, so I just hide this one whenever another map camera is active.
+            bool otherIconIsActive = false;
+            foreach (GameObject playerIcon in _otherPlayerIcons)
             {
-                _playerIcon.SetActive(!_gridManager.IsPlayerActuallyOutside);
+                if (playerIcon != null && playerIcon.activeInHierarchy)
+                {
+                    otherIconIsActive = true;
+                    break;
+                }
             }
-            else
-            {
-                // Default to true if grid manager is not available. It will show up even if the player is underground.
-                _playerIcon.SetActive(true);
-            }
+
+            bool active = _isToggledOn &&
+                (_gridManager == null || !_gridManager.IsPlayerActuallyOutside) &&
+                !otherIconIsActive;
+
+            _playerIcon.SetActive(active);
         }
 
+        // Sets the map overlay active or inactive based on the toggle state and whether the drafting map is visible.
         private void SetOverlayActive()
         {
             bool isActive = _isToggledOn;
