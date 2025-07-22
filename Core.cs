@@ -26,7 +26,6 @@ namespace BluePrinceMapOverlay
         private const string GridReferencePath = "__SYSTEM/THE GRID";
         private const string SystemGameObjectPath = "__SYSTEM";
         private const string PlayerIconRelativePath = "FPS Home/FPSController - Prince/Player Core/Player Icon";
-        private const string PlayerIconMenuRelativePath = "FPS Home/FPSController - Prince/Player Core/Player Icon Menu";
         private const string GridManagerPath = "ROOMS/Grid Manager";
 
         private const string BundlePathSuffix = "BluePrinceMapOverlay/assets/map_overlay.bundle";
@@ -39,15 +38,14 @@ namespace BluePrinceMapOverlay
         private readonly Vector3 BaseScale = new(34f, 20f, 1f);
         
         private GameObject _mapOverlay;
+        private Renderer _mapOverlayRenderer;
         private GameObject _cullingReference;
         private Camera _mapOverlayCamera;
         private Dictionary<Renderer, bool> _mapRendererVisibilities;
         private GameObject _playerIcon;
-        private List<GameObject> _otherPlayerIcons;
         // Only used to determine if the player is inside so we can disable the player icon
         private GridManager _gridManager;
         private GameObject _mapDraftingCamera;
-        private GameObject _mapCamera;
 
         private bool _openingCutsceneFinished;
         private bool _isToggledOn = false;
@@ -89,6 +87,7 @@ namespace BluePrinceMapOverlay
 
             _cullingReference = GetCullingReference();
             _mapOverlay = LoadMapOverlay(hud, _cullingReference);
+            _mapOverlayRenderer = _mapOverlay.GetComponent<Renderer>();
             _mapDraftingCamera = GameObject.Find(MapDraftingCameraPath);
 
             if (_mapDraftingCamera == null)
@@ -108,7 +107,6 @@ namespace BluePrinceMapOverlay
             GameObject grid = GameObject.Find(GridReferencePath);
             _mapRendererVisibilities = GetRendererVisibilities(grid);
             _playerIcon = ClonePlayerIcon();
-            _otherPlayerIcons = GetOtherPlayerIcons();
             _gridManager = GetGridManager();
 
             _isToggledOn = false;
@@ -149,13 +147,6 @@ namespace BluePrinceMapOverlay
                 return null;
             }
             return relativeTransform.gameObject;
-        }
-
-        // Finds the other player icons in the scene.
-        private List<GameObject> GetOtherPlayerIcons()
-        {
-            return [FindRelativeToSystem(PlayerIconRelativePath),
-                    FindRelativeToSystem(PlayerIconMenuRelativePath)];
         }
 
         // Loads the map overlay prefab from the asset bundle and instantiates it at the specified
@@ -355,7 +346,6 @@ namespace BluePrinceMapOverlay
         {
             // The player icon starts disabled, so we can't use GameObject.Find directly to get it.
             GameObject oldPlayerIcon = FindRelativeToSystem(PlayerIconRelativePath);
-            Vector3 position = oldPlayerIcon.transform.position;
             GameObject newPlayerIcon = GameObject.Instantiate(oldPlayerIcon,
                 // The icon is too high at the top of the clocktower, so we move it down a bit.
                 oldPlayerIcon.transform.position - new Vector3(0, 2, 0), 
@@ -411,20 +401,8 @@ namespace BluePrinceMapOverlay
                 return;
             }
 
-            // There are some weird flashing bugs when multiple player icons are active, so I just hide this one whenever another map camera is active.
-            bool otherIconIsActive = false;
-            foreach (GameObject playerIcon in _otherPlayerIcons)
-            {
-                if (playerIcon != null && playerIcon.activeInHierarchy)
-                {
-                    otherIconIsActive = true;
-                    break;
-                }
-            }
-
-            bool active = _isToggledOn &&
-                (_gridManager == null || !_gridManager.IsPlayerActuallyOutside) &&
-                !otherIconIsActive;
+            bool active = _mapOverlayRenderer.isVisible &&
+                (_gridManager == null || !_gridManager.IsPlayerActuallyOutside);
 
             _playerIcon.SetActive(active);
         }
