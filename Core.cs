@@ -3,7 +3,7 @@ using MelonLoader;
 using MelonLoader.Utils;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(BluePrinceMapOverlay.Core), "BluePrinceMapOverlay", "1.0.0", "dylan", null)]
+[assembly: MelonInfo(typeof(BluePrinceMapOverlay.Core), "BluePrinceMapOverlay", "1.1.0", "ComplexSimple", null)]
 [assembly: MelonGame("Dogubomb", "BLUE PRINCE")]
 
 namespace BluePrinceMapOverlay
@@ -27,10 +27,12 @@ namespace BluePrinceMapOverlay
         private const string SystemGameObjectPath = "__SYSTEM";
         private const string PlayerIconRelativePath = "FPS Home/FPSController - Prince/Player Core/Player Icon";
         private const string GridManagerPath = "ROOMS/Grid Manager";
+        private const string MapDraftingCameraPath = "UI OVERLAY CAM/Map HOlder/Map Camera Drafting";
+        private const string DraftReferencePath = "__SYSTEM/THE DRAFT/anchor/DRAFT UI";
 
         private const string BundlePathSuffix = "BluePrinceMapOverlay/assets/map_overlay.bundle";
         private const string PrefabName = "Map Overlay";
-        private const string MapDraftingCameraPath = "UI OVERLAY CAM/Map HOlder/Map Camera Drafting";
+
 
         private const float OverlayZPosition = 27.46f;
         private const float ResolutionScale = 2f; // Adjust this value to change the resolution of the overlay
@@ -43,9 +45,10 @@ namespace BluePrinceMapOverlay
         private Camera _mapOverlayCamera;
         private Dictionary<Renderer, bool> _mapRendererVisibilities;
         private GameObject _playerIcon;
-        // Only used to determine if the player is inside so we can disable the player icon
         private GridManager _gridManager;
         private GameObject _mapDraftingCamera;
+        private PlayMakerFSM _theGridFsm;
+        private PlayMakerFSM _draftUIFSM;
 
         private bool _openingCutsceneFinished;
         private bool _isToggledOn = false;
@@ -105,9 +108,11 @@ namespace BluePrinceMapOverlay
             }
 
             GameObject grid = GameObject.Find(GridReferencePath);
+            _theGridFsm = grid?.GetComponent<PlayMakerFSM>();
             _mapRendererVisibilities = GetRendererVisibilities(grid);
             _playerIcon = ClonePlayerIcon();
             _gridManager = GetGridManager();
+            _draftUIFSM = GameObject.Find(DraftReferencePath)?.GetComponent<PlayMakerFSM>();
 
             _isToggledOn = false;
         }
@@ -365,6 +370,7 @@ namespace BluePrinceMapOverlay
 
             HandleCutsceneFinished();
             HandleToggleKeyPress();
+            HandleDraftingUI();
             SetPlayerIconActive();
             SetOverlayActive();
         }
@@ -416,6 +422,25 @@ namespace BluePrinceMapOverlay
                 isActive = false; // Hide the overlay while the drafting map is visible.
             }
             _mapOverlay.SetActive(isActive);
+        }
+
+        private void HandleDraftingUI()
+        {
+            bool isDrafting = _draftUIFSM.FsmVariables.GetFsmBool("are drafting").Value;
+            if (!isDrafting)    
+            {
+                return;
+            }
+
+            // In the original game, the tile is only enabled when the drafting map is enabled.
+            // With this, it can show up on the minimap right away with the correct rotation.
+            GameObject targetTileChild = _theGridFsm.FsmVariables.GetFsmGameObject("TargetTileChild")?.Value;
+
+            targetTileChild.SetActive(true);
+            float direction = _theGridFsm.FsmVariables.GetFsmFloat("Cardinal Direction").Value;
+
+            targetTileChild.transform.rotation = Quaternion.Euler(0, direction, 0);
+            
         }
     }
 }
