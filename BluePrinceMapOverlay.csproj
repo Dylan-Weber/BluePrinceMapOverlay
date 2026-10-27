@@ -357,6 +357,7 @@
 
   <ItemGroup>
     <Compile Include="Core.cs" />
+    <Compile Include="AssetBundleLoader.cs" />
   </ItemGroup>
 
   <ItemGroup>
