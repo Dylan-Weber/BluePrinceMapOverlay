@@ -159,14 +159,14 @@ namespace BluePrinceMapOverlay
         {
             string bundlePath = Path.Combine(MelonEnvironment.ModsDirectory, BundlePathSuffix);
             LoggerInstance.Msg($"Bundle Path: {bundlePath}");
-            AssetBundle bundle = AssetBundle.LoadFromFile(bundlePath);
+            AssetBundle bundle = AssetBundleLoader.LoadFromFile(bundlePath);
             if (bundle == null)
             {
                 LoggerInstance.Error($"Failed to load asset bundle from path: {bundlePath}");
                 return null;
             }
 
-            GameObject prefab = bundle.LoadAsset<GameObject>(PrefabName);
+            GameObject prefab = AssetBundleLoader.LoadAsset<GameObject>(bundle, PrefabName);
             bundle.Unload(false);
             if (prefab == null)
             {
